@@ -1,32 +1,31 @@
 import express from 'express';
-import cors from 'cors';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
 const app = express();
 
-// 1) Explicitly allow your GitHub Pages origin (or '*' if you prefer):
-const corsOptions = {
-  origin: 'https://ndustrialinternal.github.io',
-  methods: ['POST','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
-  optionsSuccessStatus: 204
-};
-
-app.use(cors(corsOptions));
+// 1. Parse JSON bodies
 app.use(express.json());
 
-// Handle preflight for /graphql
-app.options('/graphql', cors(corsOptions));
+// 2. Universal CORS middleware
+app.use((req, res, next) => {
+  // allow your GitHub Pages origin (or use '*' to allow all)
+  res.header('Access-Control-Allow-Origin', 'https://ndustrialinternal.github.io');
+  res.header('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  // intercept OPTIONS and return immediately
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
-const UPSTREAM = process.env.UPSTREAM_URL;
-const TOKEN   = process.env.API_TOKEN;   // raw token
+const UPSTREAM = process.env.UPSTREAM_URL;  // e.g. https://demo.api.ndustrial.io/graphql
+const TOKEN    = process.env.API_TOKEN;     // raw token
 
 app.post('/graphql', async (req, res) => {
   try {
-    // Forward the client’s JSON body upstream
     const headers = { 'Content-Type': 'application/json' };
     if (TOKEN) headers['Authorization'] = TOKEN;
 
@@ -35,14 +34,7 @@ app.post('/graphql', async (req, res) => {
       headers,
       body: JSON.stringify(req.body)
     });
-
     const payload = await upstreamRes.json();
-
-    // Re-apply CORS headers on the response
-    res.set('Access-Control-Allow-Origin', corsOptions.origin);
-    res.set('Access-Control-Allow-Methods', corsOptions.methods.join(','));
-    res.set('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(','));
-
     res.status(upstreamRes.status).json(payload);
   } catch (err) {
     console.error('Proxy error:', err);
@@ -51,6 +43,4 @@ app.post('/graphql', async (req, res) => {
 });
 
 const port = process.env.PORT || 10000;
-app.listen(port, () => {
-  console.log(`Proxy listening on port ${port}`);
-});
+app.listen(port, () => console.log(`Proxy listening on port ${port}`));
