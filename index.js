@@ -21,13 +21,16 @@ app.use((req, res, next) => {
   next();
 });
 
-const UPSTREAM = process.env.UPSTREAM_URL;  // e.g. https://demo.api.ndustrial.io/graphql
-const TOKEN    = process.env.API_TOKEN;     // raw token
+const UPSTREAM = process.env.UPSTREAM_URL;
+const TOKEN    = process.env.API_TOKEN;   // just the raw token string
 
 app.post('/graphql', async (req, res) => {
   try {
+    // Build headers exactly like insomnia/curl does:
     const headers = { 'Content-Type': 'application/json' };
-    if (TOKEN) headers['Authorization'] = TOKEN;
+    if (TOKEN) {
+      headers['Authorization'] = `token ${TOKEN}`;
+    }
 
     const upstreamRes = await fetch(UPSTREAM, {
       method: 'POST',
@@ -35,6 +38,7 @@ app.post('/graphql', async (req, res) => {
       body: JSON.stringify(req.body)
     });
     const payload = await upstreamRes.json();
+
     res.status(upstreamRes.status).json(payload);
   } catch (err) {
     console.error('Proxy error:', err);
